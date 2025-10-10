@@ -11,6 +11,18 @@ $user_id = $_SESSION["user_id"];
 $user_name = $_SESSION["user_name"];
 $user_role = $_SESSION["role"];
 
+// Перевіряємо чи користувач заблокований
+$stmt = $conn->prepare("SELECT blocked, block_reason FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$user_status = $stmt->get_result()->fetch_assoc();
+
+// Перевіряємо непрочитані повідомлення від модераторів
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM moderator_messages WHERE user_id = ? AND is_read = 0");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$unread_moderator_messages = $stmt->get_result()->fetch_assoc()['count'];
+
 $stats = [];
 
 if ($user_role == "student") {
@@ -82,8 +94,188 @@ if ($user_role == "student") {
 
     <link rel="stylesheet" href="css/modal_reviews.css">
     <link rel="stylesheet" href="css/dashboard_style.css">
+    
+    <style>
+        /* Стилі для повідомлень про блокування */
+        .blocked-alert {
+            background: #fee2e2;
+            border: 3px solid #ef4444;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        
+        .blocked-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .blocked-icon {
+            font-size: 48px;
+        }
+        
+        .blocked-title h2 {
+            margin: 0;
+            color: #991b1b;
+            font-size: 24px;
+        }
+        
+        .blocked-title p {
+            margin: 5px 0 0 0;
+            color: #7f1d1d;
+            font-weight: 500;
+        }
+        
+        .blocked-reason {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .blocked-reason strong {
+            color: #991b1b;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .blocked-reason p {
+            margin: 0;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .blocked-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .moderator-link {
+            background: #dc2626;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+        
+        .moderator-link:hover {
+            background: #b91c1c;
+        }
+        
+        .unread-badge {
+            background: #fbbf24;
+            color: #78350f;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .moderator-message-alert {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .message-alert-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .message-alert-icon {
+            font-size: 24px;
+        }
+        
+        .message-alert-text {
+            color: #92400e;
+            font-weight: 500;
+        }
+        
+        .view-messages-btn {
+            background: #f59e0b;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        .view-messages-btn:hover {
+            background: #d97706;
+        }
+        
+        /* Блокуємо всі інтерактивні елементи для заблокованих користувачів */
+        <?php if ($user_status['blocked']): ?>
+        body form:not([action="logout.php"]) button,
+        body form:not([action="logout.php"]) input[type="submit"],
+        body a:not([href="contact_moderator.php"]):not([href="logout.php"]):not([href="index.php"]) {
+            pointer-events: none;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        <?php endif; ?>
+    </style>
 </head>
 <body>
+    <!-- Повідомлення про блокування -->
+    <?php if ($user_status['blocked']): ?>
+    <div class="blocked-alert">
+        <div class="blocked-header">
+            <div class="blocked-icon">🚫</div>
+            <div class="blocked-title">
+                <h2>Ваш акаунт заблоковано!</h2>
+                <p>Доступ до функцій платформи обмежено</p>
+            </div>
+        </div>
+        
+        <div class="blocked-reason">
+            <strong>Причина блокування:</strong>
+            <p><?= nl2br(htmlspecialchars($user_status['block_reason'])) ?></p>
+        </div>
+        
+        <div class="blocked-actions">
+            <a href="contact_moderator.php" class="moderator-link">
+                👮 Зв'язатися з модератором
+            </a>
+            <?php if ($unread_moderator_messages > 0): ?>
+                <span class="unread-badge">
+                    📬 У вас <?= $unread_moderator_messages ?> нових повідомлень
+                </span>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Сповіщення про непрочитані повідомлення від модераторів (для не заблокованих) -->
+    <?php if (!$user_status['blocked'] && $unread_moderator_messages > 0): ?>
+    <div class="moderator-message-alert">
+        <div class="message-alert-content">
+            <span class="message-alert-icon">📬</span>
+            <span class="message-alert-text">
+                У вас є <?= $unread_moderator_messages ?> нових повідомлень від модератора
+            </span>
+        </div>
+        <a href="contact_moderator.php" class="view-messages-btn">
+            Переглянути
+        </a>
+    </div>
+    <?php endif; ?>
+
     <div class="header">
         <div class="header-content">
             <div class="welcome-section">
@@ -237,6 +429,35 @@ if ($user_role == "student") {
             </div>
         </div>
     </div>
+
+    <script>
+    <?php if ($user_status['blocked']): ?>
+    // Блокуємо взаємодію з формами для заблокованих користувачів
+    document.addEventListener('DOMContentLoaded', function() {
+        const forms = document.querySelectorAll('form:not([action="logout.php"])');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                alert('⚠️ Ваш акаунт заблоковано. Для вирішення питання зв\'яжіться з модератором.');
+                return false;
+            });
+        });
+        
+        // Блокуємо кліки по action-card
+        const actionCards = document.querySelectorAll('.action-card');
+        actionCards.forEach(card => {
+            card.style.opacity = '0.5';
+            card.style.cursor = 'not-allowed';
+            card.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert('⚠️ Ваш акаунт заблоковано. Для вирішення питання зв\'яжіться з модератором.');
+                return false;
+            };
+        });
+    });
+    <?php endif; ?>
+    </script>
 
     <script src="js/dashboard.js"></script>
     <script src="js/get_reviews.js"></script>

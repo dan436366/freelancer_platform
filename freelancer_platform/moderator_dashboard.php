@@ -23,14 +23,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($_POST['action'] === 'resolve') {
             // Вирішити скаргу
             $note = htmlspecialchars(trim($_POST['moderator_note']));
-            $stmt = $conn->prepare("UPDATE complaints SET status = 'Вирішена', moderator_note = ?, resolved_at = NOW() WHERE id = ?");
-            $stmt->bind_param("si", $note, $complaint_id);
+            $block_user = isset($_POST['block_user']) ? 1 : 0;
+            
+            // Отримуємо дані скарги
+            $stmt = $conn->prepare("SELECT complainant_id, against_user_id FROM complaints WHERE id = ?");
+            $stmt->bind_param("i", $complaint_id);
             $stmt->execute();
+            $complaint_data = $stmt->get_result()->fetch_assoc();
+            
+            // Оновлюємо статус скарги
+            $stmt = $conn->prepare("UPDATE complaints SET status = 'Вирішена', moderator_note = ?, user_blocked = ?, resolved_at = NOW() WHERE id = ?");
+            $stmt->bind_param("sii", $note, $block_user, $complaint_id);
+            $stmt->execute();
+            
+            // Якщо користувача потрібно заблокувати
+            if ($block_user) {
+                $block_reason = "Заблоковано модератором за порушення правил. Причина: " . $note;
+                $stmt = $conn->prepare("UPDATE users SET blocked = 1, block_reason = ? WHERE id = ?");
+                $stmt->bind_param("si", $block_reason, $complaint_data['against_user_id']);
+                $stmt->execute();
+                
+                // Відправляємо повідомлення порушнику
+                $block_message = "Ваш акаунт заблоковано за порушення правил платформи.\n\nПричина: " . $note . "\n\nДля вирішення питання зв'яжіться з модератором.";
+                $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param("iiis", $complaint_data['against_user_id'], $moderator_id, $complaint_id, $block_message);
+                $stmt->execute();
+            }
+            
+            // Відправляємо повідомлення скаржнику
+            $complainant_message = "Ваша скарга #" . $complaint_id . " була розглянута.\n\nРішення модератора: " . $note;
+            if ($block_user) {
+                $complainant_message .= "\n\nПорушника заблоковано.";
+            }
+            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("iiis", $complaint_data['complainant_id'], $moderator_id, $complaint_id, $complainant_message);
+            $stmt->execute();
+            
         } elseif ($_POST['action'] === 'reject') {
             // Відхилити скаргу
             $note = htmlspecialchars(trim($_POST['moderator_note']));
+            
+            // Отримуємо дані скарги
+            $stmt = $conn->prepare("SELECT complainant_id FROM complaints WHERE id = ?");
+            $stmt->bind_param("i", $complaint_id);
+            $stmt->execute();
+            $complaint_data = $stmt->get_result()->fetch_assoc();
+            
             $stmt = $conn->prepare("UPDATE complaints SET status = 'Відхилена', moderator_note = ?, resolved_at = NOW() WHERE id = ?");
             $stmt->bind_param("si", $note, $complaint_id);
+            $stmt->execute();
+            
+            // Відправляємо повідомлення скаржнику
+            $complainant_message = "Ваша скарга #" . $complaint_id . " була відхилена.\n\nПояснення модератора: " . $note;
+            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("iiis", $complaint_data['complainant_id'], $moderator_id, $complaint_id, $complainant_message);
             $stmt->execute();
         }
     }
@@ -67,12 +113,12 @@ if ($active_filter === 'my') {
             against.role as against_role,
             lr.student_id,
             lr.tutor_id,
-            mod.name as moderator_name
+            moderator.name as moderator_name
         FROM complaints c
         JOIN users complainant ON c.complainant_id = complainant.id
         JOIN users against ON c.against_user_id = against.id
         JOIN lesson_requests lr ON c.request_id = lr.id
-        LEFT JOIN users mod ON c.moderator_id = mod.id
+        LEFT JOIN users moderator ON c.moderator_id = moderator.id
         WHERE c.status IN ('Вирішена', 'Відхилена')
         ORDER BY c.resolved_at DESC
     ");
@@ -87,12 +133,12 @@ if ($active_filter === 'my') {
             against.role as against_role,
             lr.student_id,
             lr.tutor_id,
-            mod.name as moderator_name
+            moderator.name as moderator_name
         FROM complaints c
         JOIN users complainant ON c.complainant_id = complainant.id
         JOIN users against ON c.against_user_id = against.id
         JOIN lesson_requests lr ON c.request_id = lr.id
-        LEFT JOIN users mod ON c.moderator_id = mod.id
+        LEFT JOIN users moderator ON c.moderator_id = moderator.id
         WHERE c.status IN ('Очікує', 'В обробці')
         ORDER BY c.created_at DESC
     ");
@@ -478,6 +524,9 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
         <div class="header">
             <h1>👮 Панель модератора</h1>
             <div class="user-info">
+                <a href="moderator_inbox.php" class="nav-btn" style="background: #10b981; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; margin-right: 10px;">
+                    📬 Вхідні повідомлення
+                </a>
                 <span>Вітаємо, <strong><?= htmlspecialchars($moderator_name) ?></strong></span>
                 <a href="logout.php" class="logout-btn">Вийти</a>
             </div>
@@ -535,7 +584,7 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
                                 </div>
                                 <div>
                                     <strong><?= htmlspecialchars($complaint['complainant_name']) ?></strong>
-                                    <div style="font-size: 12px; color: #666;">Скаржник</div>
+                                    <div style="font-size: 12px; color: #666;">Скаржник (ID: <?= $complaint['complainant_id'] ?>)</div>
                                 </div>
                             </div>
                             
@@ -547,7 +596,7 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
                                 </div>
                                 <div>
                                     <strong><?= htmlspecialchars($complaint['against_name']) ?></strong>
-                                    <div style="font-size: 12px; color: #666;">Порушник</div>
+                                    <div style="font-size: 12px; color: #666;">Порушник (ID: <?= $complaint['against_user_id'] ?>)</div>
                                 </div>
                             </div>
                         </div>
@@ -615,7 +664,15 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
                               placeholder="Опишіть прийняте рішення та причини..."></textarea>
                 </div>
                 
-                <div style="display: flex; gap: 10px;">
+                <div class="form-group" id="blockUserSection" style="display: none;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" name="block_user" id="block_user" value="1" style="width: 20px; height: 20px;">
+                        <span style="color: #dc2626; font-weight: bold;">🚫 Заблокувати користувача (порушника)</span>
+                    </label>
+                    <small style="color: #666;">Користувач втратить доступ до всіх функцій платформи</small>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn btn-primary">Підтвердити</button>
                     <button type="button" onclick="closeModal()" class="btn btn-secondary">Скасувати</button>
                 </div>
@@ -629,14 +686,17 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
             const title = document.getElementById('modalTitle');
             const modalComplaintId = document.getElementById('modalComplaintId');
             const modalAction = document.getElementById('modalAction');
+            const blockUserSection = document.getElementById('blockUserSection');
             
             modalComplaintId.value = complaintId;
             modalAction.value = action;
             
             if (action === 'resolve') {
                 title.textContent = '✅ Вирішити скаргу';
+                blockUserSection.style.display = 'block';
             } else {
                 title.textContent = '❌ Відхилити скаргу';
+                blockUserSection.style.display = 'none';
             }
             
             modal.classList.add('active');
@@ -646,6 +706,7 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
             const modal = document.getElementById('actionModal');
             modal.classList.remove('active');
             document.getElementById('moderator_note').value = '';
+            document.getElementById('block_user').checked = false;
         }
         
         // Close modal on background click

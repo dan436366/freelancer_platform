@@ -102,6 +102,9 @@ function getFirstLetter($name) {
             Клієнт: <?= htmlspecialchars($chat_info['student_name']) ?> | 
             Фрілансер: <?= htmlspecialchars($chat_info['tutor_name']) ?>
         </div>
+        <a href="submit_complaint.php?request_id=<?= $request_id ?>" class="btn btn-danger">
+            ⚠️ Поскаржитись
+        </a>
     </div>
 
     <div class="chat-messages" id="chatMessages">
