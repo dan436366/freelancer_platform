@@ -24,8 +24,9 @@ if (!$user) {
 // Обробка надсилання повідомлення
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['message'])) {
     $message = htmlspecialchars(trim($_POST['message']));
-    $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, message) VALUES (?, ?, ?)");
-    $stmt->bind_param("iis", $user_id, $moderator_id, $message);
+    // Модератор відправляє повідомлення
+    $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, sender_id, message) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("iiis", $user_id, $moderator_id, $moderator_id, $message);
     $stmt->execute();
     
     header("Location: moderator_chat_user.php?user_id=" . $user_id);
@@ -35,15 +36,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['message'])) {
 // Отримуємо повідомлення
 $stmt = $conn->prepare("
     SELECT mm.*, 
+           sender.name as sender_name,
+           sender.role as sender_role,
            CASE 
-               WHEN mm.user_id = ? THEN 'user'
-               ELSE 'moderator'
-           END as sender_type
+               WHEN sender.role = 'moderator' THEN 'moderator'
+               ELSE 'user'
+           END as sender_type,
+           moderator.name as moderator_name,
+           user.name as user_name
     FROM moderator_messages mm
-    WHERE (mm.user_id = ? AND mm.moderator_id = ?) OR (mm.user_id = ? AND mm.moderator_id IS NULL)
+    JOIN users sender ON mm.sender_id = sender.id
+    JOIN users moderator ON mm.moderator_id = moderator.id
+    JOIN users user ON mm.user_id = user.id
+    WHERE mm.user_id = ?
     ORDER BY mm.created_at ASC
 ");
-$stmt->bind_param("iiii", $user_id, $user_id, $moderator_id, $user_id);
+$stmt->bind_param("i", $user_id);
 $stmt->execute();
 $messages = $stmt->get_result();
 
@@ -376,7 +384,7 @@ $stmt->execute();
                     </div>
                     <div class="message-content">
                         <div class="message-sender">
-                            <?= $msg['sender_type'] === 'moderator' ? 'Модератор' : htmlspecialchars($user['name']) ?>
+                            <?= $msg['sender_type'] === 'moderator' ? htmlspecialchars($msg['moderator_name']) : htmlspecialchars($msg['user_name']) ?>
                         </div>
                         <div class="message-text"><?= nl2br(htmlspecialchars($msg['message'])) ?></div>
                         <div class="message-time"><?= date('d.m.Y H:i', strtotime($msg['created_at'])) ?></div>

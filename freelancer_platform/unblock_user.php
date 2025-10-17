@@ -9,6 +9,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'moderator') {
 
 $moderator_id = $_SESSION['user_id'];
 $user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
+$redirect = isset($_GET['redirect']) ? $_GET['redirect'] : 'inbox';
+$chat_user_id = isset($_GET['chat_user_id']) ? intval($_GET['chat_user_id']) : 0;
 
 if ($user_id > 0) {
     // Розблоковуємо користувача
@@ -18,11 +20,16 @@ if ($user_id > 0) {
     
     // Відправляємо повідомлення користувачу
     $message = "Ваш акаунт було розблоковано.\n\nВи знову маєте доступ до всіх функцій платформи. Будь ласка, дотримуйтесь правил користування сервісом.";
-    $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, message) VALUES (?, ?, ?)");
-    $stmt->bind_param("iis", $user_id, $moderator_id, $message);
+    $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, sender_id, message) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("iiis", $user_id, $moderator_id, $moderator_id, $message);
     $stmt->execute();
 }
 
-header('Location: moderator_inbox.php');
+// Редірект
+if ($redirect === 'chat' && $chat_user_id > 0) {
+    header('Location: moderator_chat_user.php?user_id=' . $chat_user_id);
+} else {
+    header('Location: moderator_inbox.php');
+}
 exit();
 ?>

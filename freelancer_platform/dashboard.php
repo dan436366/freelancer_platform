@@ -250,11 +250,11 @@ if ($user_role == "student") {
         
         <div class="blocked-actions">
             <a href="contact_moderator.php" class="moderator-link">
-                👮 Зв'язатися з модератором
+                👮 Чат з модератором
             </a>
             <?php if ($unread_moderator_messages > 0): ?>
                 <span class="unread-badge">
-                    📬 У вас <?= $unread_moderator_messages ?> нових повідомлень
+                    📬 <?= $unread_moderator_messages ?> нових повідомлень
                 </span>
             <?php endif; ?>
         </div>
@@ -349,6 +349,18 @@ if ($user_role == "student") {
                         <div class="action-desc">Переглядайте статус ваших заявок на співпрацю</div>
                         <a href="student_dashboard.php" class="action-link">Переглянути заявки →</a>
                     </div>
+                    <div onclick="window.location.href='contact_moderator.php'" class="action-card" style="border: 2px solid #f59e0b;">
+                        <span class="action-icon">👮</span>
+                        <div class="action-title">Зв'язок з модератором
+                            <?php if ($unread_moderator_messages > 0): ?>
+                                <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 5px;">
+                                    <?= $unread_moderator_messages ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="action-desc">Напишіть модератору, якщо у вас виникли питання</div>
+                        <a href="contact_moderator.php" class="action-link">Відкрити чат →</a>
+                    </div>
                 <?php else: ?>
                     <div onclick="window.location.href='tutor_dashboard.php'" class="action-card">
                         <span class="action-icon">📋</span>
@@ -367,6 +379,18 @@ if ($user_role == "student") {
                         <div class="action-title">Налаштування профілю</div>
                         <div class="action-desc">Оновіть інформацію про себе та свої послуги</div>
                         <a href="tutor_specializations.php" class="action-link">Редагувати профіль →</a>
+                    </div>
+                    <div onclick="window.location.href='contact_moderator.php'" class="action-card" style="border: 2px solid #f59e0b;">
+                        <span class="action-icon">👮</span>
+                        <div class="action-title">Зв'язок з модератором
+                            <?php if ($unread_moderator_messages > 0): ?>
+                                <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 5px;">
+                                    <?= $unread_moderator_messages ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="action-desc">Напишіть модератору, якщо у вас виникли питання</div>
+                        <a href="contact_moderator.php" class="action-link">Відкрити чат →</a>
                     </div>
                 <?php endif; ?>
             </div>
