@@ -350,7 +350,7 @@ $stmt->execute();
                 <h2><?= htmlspecialchars($user['name']) ?></h2>
                 <div class="user-header-meta">
                     <?= htmlspecialchars($user['email']) ?> | 
-                    <?= $user['role'] === 'student' ? '🎓 Студент' : '👨‍🏫 Репетитор' ?>
+                    <?= $user['role'] === 'student' ? '🧑 Клієнт' : '👨‍💻 Фрілансер' ?>
                     <?php if ($user['blocked']): ?>
                         | <span class="blocked-indicator">🚫 ЗАБЛОКОВАНИЙ</span>
                     <?php endif; ?>

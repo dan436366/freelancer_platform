@@ -332,7 +332,7 @@ $stats = $stmt->get_result()->fetch_assoc();
                             <div class="user-meta">
                                 <?= htmlspecialchars($user['email']) ?> | 
                                 ID: <?= $user['id'] ?> | 
-                                <?= $user['role'] === 'student' ? '🎓 Студент' : '👨‍🏫 Репетитор' ?>
+                                <?= $user['role'] === 'student' ? '🧑 Клієнт' : '👨‍💻 Фрілансер' ?>
                             </div>
                         </div>
                         

@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'tutor') {
 
 $tutor_id = $_SESSION['user_id'];
 
-// Обробка додавання/оновлення спеціалізації
+// Обробка додавання/оновлення спеціалізацій
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -42,16 +42,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'update_profile':
+                $name = trim($_POST['name']);
                 $bio = $_POST['bio'];
                 $phone = $_POST['phone'];
                 
-                $stmt = $conn->prepare("UPDATE users SET bio = ?, phone = ? WHERE id = ?");
-                $stmt->bind_param("ssi", $bio, $phone, $tutor_id);
-                
-                if ($stmt->execute()) {
-                    $_SESSION['success_message'] = 'Профіль оновлено!';
+                // Перевірка чи ім'я не пусте
+                if (empty($name)) {
+                    $_SESSION['error_message'] = 'Ім\'я не може бути порожнім!';
                 } else {
-                    $_SESSION['error_message'] = 'Помилка при оновленні профілю.';
+                    $stmt = $conn->prepare("UPDATE users SET name = ?, bio = ?, phone = ? WHERE id = ?");
+                    $stmt->bind_param("sssi", $name, $bio, $phone, $tutor_id);
+                    
+                    if ($stmt->execute()) {
+                        $_SESSION['user_name'] = $name; // Оновлюємо ім'я в сесії
+                        $_SESSION['success_message'] = 'Профіль оновлено!';
+                    } else {
+                        $_SESSION['error_message'] = 'Помилка при оновленні профілю.';
+                    }
                 }
                 break;
         }
@@ -90,6 +97,45 @@ $tutor_info = $tutor_info_stmt->get_result()->fetch_assoc();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Мої спеціалізації</title>
     <link rel="stylesheet" href="css/tutor_specializations_style.css">
+    <style>
+        .contact-moderator-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            color: white;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .contact-moderator-card h4 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        .contact-moderator-card p {
+            margin: 0 0 15px 0;
+            opacity: 0.95;
+            font-size: 14px;
+        }
+        
+        .btn-contact-moderator {
+            background: white;
+            color: #667eea;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        
+        .btn-contact-moderator:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -190,7 +236,7 @@ $tutor_info = $tutor_info_stmt->get_result()->fetch_assoc();
                     <?php else: ?>
                         <div class="empty-state">
                             <div class="empty-icon">📚</div>
-                            <h4>Спеціалізації не додано</h4>
+                            <h4>Спеціалізацій не додано</h4>
                             <p>Додайте спеціалізації, щоб клієнти могли знайти вас.</p>
                         </div>
                     <?php endif; ?>
@@ -235,6 +281,15 @@ $tutor_info = $tutor_info_stmt->get_result()->fetch_assoc();
                             ✅ Додати спеціалізацію
                         </button>
                     </form>
+                    
+                    <!-- Блок звʼязку з модератором -->
+                    <div class="contact-moderator-card">
+                        <h4>🔍 Не знайшли свою спеціалізацію?</h4>
+                        <p>Зв'яжіться з модератором, і він додасть її до списку!</p>
+                        <a href="contact_moderator.php" class="btn-contact-moderator">
+                            💬 Написати модератору
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -247,6 +302,11 @@ $tutor_info = $tutor_info_stmt->get_result()->fetch_assoc();
             <div class="section-content">
                 <form method="post">
                     <input type="hidden" name="action" value="update_profile">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Ім'я</label>
+                        <input type="text" name="name" class="form-control" placeholder="Ваше повне ім'я" value="<?= htmlspecialchars($tutor_info['name']) ?>" required>
+                    </div>
                     
                     <div class="form-group">
                         <label class="form-label">Про себе</label>
