@@ -13,6 +13,51 @@ $moderator_name = $_SESSION['user_name'];
 // Обробка дій модератора
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
+        $action = $_POST['action'];
+        
+        // Обробка спеціалізацій
+        if ($action === 'add_specialization') {
+            $name = htmlspecialchars(trim($_POST['spec_name']));
+            $description = htmlspecialchars(trim($_POST['spec_description']));
+            $icon = htmlspecialchars(trim($_POST['spec_icon']));
+            
+            if (!empty($name)) {
+                $stmt = $conn->prepare("INSERT INTO specializations (name, description, icon) VALUES (?, ?, ?)");
+                $stmt->bind_param("sss", $name, $description, $icon);
+                if ($stmt->execute()) {
+                    $_SESSION['success_message'] = 'Спеціалізацію успішно додано!';
+                } else {
+                    $_SESSION['error_message'] = 'Помилка при додаванні спеціалізації. Можливо, вона вже існує.';
+                }
+            }
+            header('Location: moderator_dashboard.php#specializations');
+            exit();
+        }
+        
+        if ($action === 'delete_specialization') {
+            $spec_id = intval($_POST['spec_id']);
+            
+            // Перевіряємо чи використовується спеціалізація
+            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM tutor_specializations WHERE specialization_id = ?");
+            $stmt->bind_param("i", $spec_id);
+            $stmt->execute();
+            $result = $stmt->get_result()->fetch_assoc();
+            
+            if ($result['count'] > 0) {
+                $_SESSION['error_message'] = 'Неможливо видалити спеціалізацію - вона використовується викладачами!';
+            } else {
+                $stmt = $conn->prepare("DELETE FROM specializations WHERE id = ?");
+                $stmt->bind_param("i", $spec_id);
+                if ($stmt->execute()) {
+                    $_SESSION['success_message'] = 'Спеціалізацію успішно видалено!';
+                } else {
+                    $_SESSION['error_message'] = 'Помилка при видаленні спеціалізації.';
+                }
+            }
+            header('Location: moderator_dashboard.php#specializations');
+            exit();
+        }
+        
         $complaint_id = intval($_POST['complaint_id']);
         
         if ($_POST['action'] === 'take') {
@@ -43,20 +88,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->bind_param("si", $block_reason, $complaint_data['against_user_id']);
                 $stmt->execute();
                 
-                // Відправляємо повідомлення порушнику
+                // Відправляємо повідомлення порушнику (ДОДАНО sender_id)
                 $block_message = "Ваш акаунт заблоковано за порушення правил платформи.\n\nПричина: " . $note . "\n\nДля вирішення питання зв'яжіться з модератором.";
-                $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
-                $stmt->bind_param("iiis", $complaint_data['against_user_id'], $moderator_id, $complaint_id, $block_message);
+                $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, sender_id, complaint_id, message) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("iiiis", $complaint_data['against_user_id'], $moderator_id, $moderator_id, $complaint_id, $block_message);
                 $stmt->execute();
             }
             
-            // Відправляємо повідомлення скаржнику
+            // Відправляємо повідомлення скаржнику (ДОДАНО sender_id)
             $complainant_message = "Ваша скарга #" . $complaint_id . " була розглянута.\n\nРішення модератора: " . $note;
             if ($block_user) {
                 $complainant_message .= "\n\nПорушника заблоковано.";
             }
-            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("iiis", $complaint_data['complainant_id'], $moderator_id, $complaint_id, $complainant_message);
+            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, sender_id, complaint_id, message) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("iiiis", $complaint_data['complainant_id'], $moderator_id, $moderator_id, $complaint_id, $complainant_message);
             $stmt->execute();
             
         } elseif ($_POST['action'] === 'reject') {
@@ -73,10 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("si", $note, $complaint_id);
             $stmt->execute();
             
-            // Відправляємо повідомлення скаржнику
+            // Відправляємо повідомлення скаржнику (ДОДАНО sender_id)
             $complainant_message = "Ваша скарга #" . $complaint_id . " була відхилена.\n\nПояснення модератора: " . $note;
-            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, complaint_id, message) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("iiis", $complaint_data['complainant_id'], $moderator_id, $complaint_id, $complainant_message);
+            $stmt = $conn->prepare("INSERT INTO moderator_messages (user_id, moderator_id, sender_id, complaint_id, message) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("iiiis", $complaint_data['complainant_id'], $moderator_id, $moderator_id, $complaint_id, $complainant_message);
             $stmt->execute();
         }
     }
@@ -161,6 +206,16 @@ $stmt = $conn->prepare("SELECT COUNT(*) as count FROM complaints WHERE moderator
 $stmt->bind_param("i", $moderator_id);
 $stmt->execute();
 $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
+
+// Отримуємо всі спеціалізації
+$all_specializations = $conn->query("
+    SELECT s.*, 
+           COUNT(ts.id) as tutor_count 
+    FROM specializations s 
+    LEFT JOIN tutor_specializations ts ON s.id = ts.specialization_id 
+    GROUP BY s.id 
+    ORDER BY s.name
+");
 ?>
 
 <!DOCTYPE html>
@@ -517,6 +572,134 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
             font-size: 48px;
             margin-bottom: 15px;
         }
+        
+        .specializations-section {
+            margin-top: 30px;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            scroll-margin-top: 20px;
+        }
+        
+        .specializations-section h2 {
+            margin: 0 0 20px 0;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .spec-item {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            transition: all 0.3s;
+        }
+        
+        .spec-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .spec-info {
+            flex: 1;
+        }
+        
+        .spec-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .spec-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .spec-usage {
+            font-size: 12px;
+            color: #10b981;
+            font-weight: 500;
+        }
+        
+        .spec-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-delete-spec {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .btn-delete-spec:hover {
+            background: #dc2626;
+        }
+        
+        .btn-delete-spec:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .add-spec-form {
+            background: #f0f9ff;
+            border: 2px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .add-spec-form h3 {
+            margin: 0 0 15px 0;
+            color: #1e40af;
+        }
+        
+        .form-row {
+            display: flex;
+            grid-template-columns: 2fr 3fr 100px;
+            gap: 15px;
+            margin-bottom: 15px;
+            justify-content: space-between;
+        }
+        
+        .form-control {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .form-control.icon-input {
+            text-align: center;
+            font-size: 24px;
+        }
     </style>
 </head>
 <body>
@@ -524,6 +707,9 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
         <div class="header">
             <h1>👮 Панель модератора</h1>
             <div class="user-info">
+                <a href="#specializations" class="nav-btn" style="background: #f59e0b; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; margin-right: 10px;">
+                    📚 Спеціалізації
+                </a>
                 <a href="moderator_inbox.php" class="nav-btn" style="background: #10b981; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; margin-right: 10px;">
                     📬 Вхідні повідомлення
                 </a>
@@ -642,11 +828,84 @@ $my_resolved = $stmt->get_result()->fetch_assoc()['count'];
                 <?php endwhile; ?>
             <?php else: ?>
                 <div class="empty-state">
-                    <div class="empty-state-icon">📭</div>
+                    <div class="empty-state-icon">🔭</div>
                     <h3>Немає скарг</h3>
                     <p>У цій категорії поки що немає скарг</p>
                 </div>
             <?php endif; ?>
+        </div>
+        
+        <!-- Секція управління спеціалізаціями -->
+        <div id="specializations" class="specializations-section">
+            <h2>📚 Управління спеціалізаціями</h2>
+            
+            <?php if (isset($_SESSION['success_message'])): ?>
+                <div style="background: #d1fae5; color: #065f46; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                    ✅ <?= htmlspecialchars($_SESSION['success_message']) ?>
+                </div>
+                <?php unset($_SESSION['success_message']); ?>
+            <?php endif; ?>
+
+            <?php if (isset($_SESSION['error_message'])): ?>
+                <div style="background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                    ❌ <?= htmlspecialchars($_SESSION['error_message']) ?>
+                </div>
+                <?php unset($_SESSION['error_message']); ?>
+            <?php endif; ?>
+            
+            <div class="spec-grid">
+                <?php while ($spec = $all_specializations->fetch_assoc()): ?>
+                    <div class="spec-item">
+                        <div class="spec-info">
+                            <div class="spec-name">
+                                <span><?= $spec['icon'] ?></span>
+                                <span><?= htmlspecialchars($spec['name']) ?></span>
+                            </div>
+                            <?php if (!empty($spec['description'])): ?>
+                                <div class="spec-description">
+                                    <?= htmlspecialchars($spec['description']) ?>
+                                </div>
+                            <?php endif; ?>
+                            <div class="spec-usage">
+                                👥 Використовується: <?= $spec['tutor_count'] ?> викладачів
+                            </div>
+                        </div>
+                        <div class="spec-actions">
+                            <form method="post" style="display: inline;" onsubmit="return confirm('Видалити спеціалізацію &quot;<?= htmlspecialchars($spec['name']) ?>&quot;?');">
+                                <input type="hidden" name="action" value="delete_specialization">
+                                <input type="hidden" name="spec_id" value="<?= $spec['id'] ?>">
+                                <button type="submit" class="btn-delete-spec" <?= $spec['tutor_count'] > 0 ? 'disabled title="Використовується викладачами"' : '' ?>>
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            </div>
+            
+            <div class="add-spec-form">
+                <h3>➕ Додати нову спеціалізацію</h3>
+                <form method="post">
+                    <input type="hidden" name="action" value="add_specialization">
+                    <div class="form-row">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">Назва *</label>
+                            <input type="text" name="spec_name" class="form-control" placeholder="Назва предмету" required>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">Опис</label>
+                            <input type="text" name="spec_description" class="form-control" placeholder="Короткий опис спеціалізації">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666; margin-right: 100px;">Іконка</label>
+                            <input type="text" name="spec_icon" class="form-control icon-input" placeholder="📖" maxlength="2" value="📖">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        ✅ Додати спеціалізацію
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 
