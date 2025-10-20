@@ -389,7 +389,7 @@ function getFirstLetter($name) {
     <div class="participants-info">
         <div class="participant <?= $complaint_data['complainant_id'] == $chat_info['student_id'] ? 'complainant' : '' ?> <?= $complaint_data['against_user_id'] == $chat_info['student_id'] ? 'against' : '' ?>">
             <div class="participant-label">
-                🎓 Студент
+                🧑 Клієнт
                 <?php if ($complaint_data['complainant_id'] == $chat_info['student_id']): ?>
                     (Скаржник)
                 <?php elseif ($complaint_data['against_user_id'] == $chat_info['student_id']): ?>
@@ -402,7 +402,7 @@ function getFirstLetter($name) {
 
         <div class="participant <?= $complaint_data['complainant_id'] == $chat_info['tutor_id'] ? 'complainant' : '' ?> <?= $complaint_data['against_user_id'] == $chat_info['tutor_id'] ? 'against' : '' ?>">
             <div class="participant-label">
-                👨‍🏫 Репетитор
+                👨‍💻 Фрілансер
                 <?php if ($complaint_data['complainant_id'] == $chat_info['tutor_id']): ?>
                     (Скаржник)
                 <?php elseif ($complaint_data['against_user_id'] == $chat_info['tutor_id']): ?>

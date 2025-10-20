@@ -102,7 +102,7 @@ function getFirstLetter($name) {
             Клієнт: <?= htmlspecialchars($chat_info['student_name']) ?> | 
             Фрілансер: <?= htmlspecialchars($chat_info['tutor_name']) ?>
         </div>
-        <a href="submit_complaint.php?request_id=<?= $request_id ?>" class="btn btn-danger" style="border-radius: 20px; padding: 10px; background: red; text-decoration: none; color: yellow; font-weight: 500; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; float:left; margin-top: 10px;">
+        <a href="submit_complaint.php?request_id=<?= $request_id ?>" class="btn btn-danger" style="border-radius: 20px; padding: 10px; background: #e74c3c;; text-decoration: none; color: #e9ff23ff; font-weight: 500; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; float:left; margin-top: 10px;">
             ⚠️ Поскаржитись
         </a>
     </div>
